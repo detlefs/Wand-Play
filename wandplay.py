@@ -76,7 +76,7 @@ def start_wand():
     return win
 
 
-def wait_until(find, timeout, failure):
+def wait_until(find, timeout, failure, poll=POLL):
     """Poll `find` until it returns something truthy, else give up with a message.
 
     Every readiness check waits on the element it actually needs. Waiting on a weaker
@@ -94,7 +94,7 @@ def wait_until(find, timeout, failure):
             return found
         if time.monotonic() >= deadline:
             sys.exit(f"{failure} (gave up after {timeout:.0f}s)")
-        time.sleep(POLL)
+        time.sleep(poll)
 
 
 def find_web_root(win):
@@ -202,15 +202,40 @@ def wait_for_detail_page(win, game, timeout=NAV_TIMEOUT):
 
 # --- entry points ------------------------------------------------------------
 
-def dump():
-    win = start_wand()
-    doc = wait_until(lambda: find_web_root(win), TREE_TIMEOUT,
-                     "Wand's accessibility tree stayed empty")
+def tree_lines(win):
+    """The whole web tree as printable lines, or None while it is still empty."""
+    doc = find_web_root(win)
+    if doc is None:
+        return None
+    lines = []
     for ctrl, depth in walk(doc):
         r = ctrl.BoundingRectangle
-        print(f"{'  ' * depth}{ctrl.ControlTypeName} name={ctrl.Name!r} "
-              f"id={ctrl.AutomationId!r} w={r.right - r.left} h={r.bottom - r.top} "
-              f"x={r.left} y={r.top}")
+        lines.append(f"{'  ' * depth}{ctrl.ControlTypeName} name={ctrl.Name!r} "
+                     f"id={ctrl.AutomationId!r} w={r.right - r.left} h={r.bottom - r.top} "
+                     f"x={r.left} y={r.top}")
+    return lines
+
+
+def dump():
+    """Print the tree once it stops growing.
+
+    Chromium keeps filling the tree for seconds after the first node appears, so dumping
+    on that signal prints a near-empty shell. Waiting for the sidebar instead is not an
+    option: --dump exists for the case where those very selectors broke, so the wait has
+    to be selector-free. Two identical node counts in a row is that signal.
+    """
+    win = start_wand()
+    previous = [-1]
+
+    def settled():
+        lines = tree_lines(win) or []
+        stable = len(lines) > 0 and len(lines) == previous[0]
+        previous[0] = len(lines)
+        return lines if stable else None
+
+    lines = wait_until(settled, TREE_TIMEOUT, "Wand's tree never stopped changing", poll=1.0)
+    print("\n".join(lines))
+    print(f"--- {len(lines)} controls ---", file=sys.stderr)
 
 
 def selftest():

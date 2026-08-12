@@ -74,8 +74,12 @@ Mauszeiger-Diebstahl, und Einträge weit unten in der Liste brauchen kein Scroll
 
 ## Wenn ein Wand-Update die Selektoren bricht
 
-`py wandplay.py --dump` zeigt den kompletten Baum mit Namen, Typ und Geometrie. Die drei
-Stellen, die brechen können, stehen in [wandplay.py](wandplay.py): `sidebar()` (der
+`py wandplay.py --dump` zeigt den kompletten Baum mit Namen, Typ und Geometrie (rund 1300
+Zeilen; die Anzahl geht nach stderr, `> baum.txt` bleibt also sauber). Der Dump wartet
+bewusst **nicht** auf die Sidebar, sondern darauf, dass der Baum nicht mehr wächst — er muss
+ja gerade dann funktionieren, wenn die Selektoren kaputt sind.
+
+Die drei Stellen, die brechen können, stehen in [wandplay.py](wandplay.py): `sidebar()` (der
 `browse`-Anker), `sidebar_games()` (Größenfilter) und `PLAY_NAMES` (Beschriftung des
 Buttons, aktuell `Spielen`/`Play`).
 

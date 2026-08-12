@@ -99,6 +99,13 @@ Beim ersten echten Kaltstart brach das Tool ab. Zwei getrennte Ursachen, beide g
    Element und UIA wirft. Wird in `wait_until()` als „noch nicht fertig" behandelt und erneut
    versucht; der Timeout beendet es weiterhin.
 
+3. **`--dump` gab nur das leere Gerüst aus.** Dieselbe Wurzel wie 1: gedumpt wurde, sobald
+   `RootWebArea` ein Kind hatte. Hier ist die Lösung aber bewusst eine andere als im
+   Normalpfad — auf die Sidebar zu warten wäre falsch, weil `--dump` genau dann gebraucht
+   wird, wenn die Selektoren kaputt sind. Das Signal muss selektor-frei sein: gewartet wird,
+   bis der Baum nicht mehr wächst (zwei gleiche Knotenzahlen in Folge). Kalt: 1327 Zeilen
+   nach 12 s statt 13 Zeilen sofort.
+
 `TREE_TIMEOUT` steht jetzt bei 180 s. Das ist eine Abbruchgrenze, keine Wartezeit — der
 Normalfall ist in ~11 s durch.
 
