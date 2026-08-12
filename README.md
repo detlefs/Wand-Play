@@ -24,6 +24,7 @@ Steam muss **nicht** separat angesteuert werden — das erledigt Wand.
 py wandplay.py "Black Flag"     Teilname, Groß-/Kleinschreibung egal
 py wandplay.py --dump           Wands Accessibility-Baum ausgeben
 py wandplay.py --selftest       Namens-Matching prüfen
+py wandplay.py --version        Versionsnummer ausgeben (auch -V)
 ```
 
 Der Suchbegriff wird als Teilstring gegen Wands Spieleliste gematcht. Mehrere Treffer
@@ -48,6 +49,30 @@ Bequemer Aufruf über das PowerShell-Profil (`$PROFILE`):
 ```powershell
 function wandplay { py d:\Entwicklung\GitHub\Wand-Play\wandplay.py @args }
 ```
+
+## Als EXE bauen
+
+```powershell
+py -m pip install pyinstaller
+py build.py
+```
+
+Ergebnis: `dist\wandplay.exe`, rund 10,5 MB, eine einzelne Datei ohne Python-Installation
+auf dem Zielrechner. Aufruf identisch: `wandplay.exe "Black Flag"`.
+
+Die Versionsnummer steht **ausschließlich** in `__version__` in [wandplay.py](wandplay.py).
+[build.py](build.py) erzeugt daraus die Windows-Versionsressource, damit `--version` und die
+Dateieigenschaften im Explorer nicht auseinanderlaufen können:
+
+```text
+> dist\wandplay.exe --version
+wandplay 1.0.0
+
+> (Get-Item dist\wandplay.exe).VersionInfo.FileVersion
+1.0.0
+```
+
+Für eine neue Version nur `__version__` ändern und `py build.py` erneut ausführen.
 
 ## Wie es funktioniert
 
@@ -82,5 +107,13 @@ ja gerade dann funktionieren, wenn die Selektoren kaputt sind.
 Die drei Stellen, die brechen können, stehen in [wandplay.py](wandplay.py): `sidebar()` (der
 `browse`-Anker), `sidebar_games()` (Größenfilter) und `PLAY_NAMES` (Beschriftung des
 Buttons, aktuell `Spielen`/`Play`).
+
+`PLAY_NAMES` ist die einzige sprachabhängige Stelle — stellst du Wands Oberfläche auf eine
+andere Sprache um, muss die dortige Beschriftung ergänzt werden. Anker und Größenfilter sind
+sprachunabhängig.
+
+Meldet das Tool *„shows no Play button, only \[…\]"*, ist die Seite korrekt geöffnet und die
+Beschriftung passt nur nicht. Steht dort `Spiel hinzufügen`, hat Wand das Spiel nicht mehr
+hinzugefügt — einmal in Wand hinzufügen, danach läuft es wieder.
 
 Verifiziert gegen Wand `app-12.45.1`, deutsche Oberfläche.

@@ -106,8 +106,46 @@ Beim ersten echten Kaltstart brach das Tool ab. Zwei getrennte Ursachen, beide g
    bis der Baum nicht mehr wächst (zwei gleiche Knotenzahlen in Folge). Kalt: 1327 Zeilen
    nach 12 s statt 13 Zeilen sofort.
 
+4. **`--dump` feuerte im Ladebildschirm.** Die erste Fassung von 3 nahm „zwei gleiche
+   Knotenzahlen in Folge" als Signal. Die gemessene Wachstumskurve eines Kaltstarts zeigt
+   aber ein Plateau: 0 Knoten bei 5,8 s, **17 bei 6,3 s und 17 bei 6,9 s**, 1100 bei 8,5 s,
+   1326 ab 10,2 s. Das Plateau hält 2,2 s — die Regel lag mittendrin und dumpte 18 Zeilen.
+   Jetzt: 5 gleiche Zählungen im Abstand von 1 s (`DUMP_SETTLE`), das überspringt das
+   Plateau mit Abstand. Die Kurve zeigt außerdem ein Dauerwackeln im Ruhezustand
+   (1326 → 1328 → 1326), das strenge Stabilität nie erreichen könnte; deshalb gibt der Dump
+   beim Timeout die größte gesehene Stichprobe aus, statt zu scheitern.
+
 `TREE_TIMEOUT` steht jetzt bei 180 s. Das ist eine Abbruchgrenze, keine Wartezeit — der
 Normalfall ist in ~11 s durch.
+
+## EXE-Build und Versionierung
+
+- **PyInstaller `--onefile`**, angestoßen von [build.py](build.py). Ergebnis 10,5 MB, läuft
+  ohne Python auf dem Zielrechner. `comtypes`/UIA funktionieren im Freeze ohne Zusatzflags —
+  geprüft, indem `--dump` aus der EXE denselben 1327-Zeilen-Baum liefert wie das Skript.
+- **Eine Quelle für die Version**: `__version__` in [wandplay.py](wandplay.py). `build.py`
+  generiert daraus die Windows-Versionsressource (`VSVersionInfo`) in eine temporäre Datei.
+  Die Alternative wäre gewesen, die Nummer in einer `.spec`- oder Ressourcendatei zu
+  pflegen — zwei Orte, die auseinanderlaufen. Verifiziert: `--version` sagt `1.0.0`,
+  `(Get-Item …).VersionInfo.FileVersion` sagt `1.0.0`.
+- **Kein `.spec` im Repo**: `build.py` ruft PyInstaller mit Flags auf, die generierte
+  `.spec` ist Wegwerfware und steht in [.gitignore](.gitignore).
+
+## Sprachabhängigkeit
+
+Beim Testen war Wand kurzzeitig auf Chinesisch umgestellt. Das hat gezeigt, wo das Tool
+sprachabhängig ist: **nur `PLAY_NAMES`**. Der Sidebar-Anker (`browse`) ist ein
+Material-Icon-Name und damit sprachneutral, der Größenfilter ist es ohnehin. Der Dump ist
+bewusst selektor- und damit sprachfrei — er funktioniert also gerade dann, wenn genau diese
+Stelle bricht.
+
+## Wand-Zustand, nicht Tool-Fehler
+
+Nach dem Sprachwechsel bot Wands Detailseite für Black Flag `Spiel hinzufügen` statt
+`Spielen` an; Starfield, Baldur's Gate 3 und Avowed zeigten weiter `Spielen`. Das Tool hat
+korrekt abgebrochen statt zu klicken. Die Fehlermeldung war allerdings falsch — sie sagte
+„did not open", obwohl die Seite offen war. Jetzt unterscheidet sie beide Fälle und listet
+die tatsächlich vorhandenen Buttons auf.
 
 **Offen:** Der finale `Invoke()` auf „Spielen" ist noch nicht End-to-End ausgeführt worden —
 er startet ein echtes Spiel. Alles davor ist gemessen.

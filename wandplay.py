@@ -4,6 +4,7 @@
     py wandplay.py "Black Flag"   pick the game, let Wand start it
     py wandplay.py --dump         print Wand's accessibility tree (selector debugging)
     py wandplay.py --selftest     check the name matching
+    py wandplay.py --version      print the version
 
 Wand's own "Spielen" button starts the game through Steam and attaches the trainer,
 so this drives Wand only -- no Steam registry, manifests or process polling needed.
@@ -18,6 +19,9 @@ from pathlib import Path
 import uiautomation as auto
 from comtypes import COMError
 
+# The single source of truth: build.py reads this and stamps it into the exe resource.
+__version__ = "1.0.0"
+
 WAND_EXE = Path(os.environ.get("LOCALAPPDATA", "")) / "Wand" / "Wand.exe"
 
 # ponytail: Chromium builds its accessibility tree only once a UIA client asks, and the
@@ -27,6 +31,11 @@ WAND_EXE = Path(os.environ.get("LOCALAPPDATA", "")) / "Wand" / "Wand.exe"
 TREE_TIMEOUT = 180.0
 NAV_TIMEOUT = 25.0
 POLL = 0.5
+
+# ponytail: --dump waits for the node count to go quiet. 5 samples 1s apart clears the
+# ~2.2s pre-render plateau with margin; shorten only if you re-measure the growth curve.
+DUMP_SETTLE = 5
+DUMP_POLL = 1.0
 
 # Wand appends material-icon words and badges to accessible names.
 ICON_SUFFIXES = (" NEU", " NEW", " kid_star")
@@ -76,7 +85,7 @@ def start_wand():
     return win
 
 
-def wait_until(find, timeout, failure, poll=POLL):
+def wait_until(find, timeout, failure):
     """Poll `find` until it returns something truthy, else give up with a message.
 
     Every readiness check waits on the element it actually needs. Waiting on a weaker
@@ -93,8 +102,9 @@ def wait_until(find, timeout, failure, poll=POLL):
         if found:
             return found
         if time.monotonic() >= deadline:
-            sys.exit(f"{failure} (gave up after {timeout:.0f}s)")
-        time.sleep(poll)
+            reason = failure() if callable(failure) else failure
+            sys.exit(f"{reason} (gave up after {timeout:.0f}s)")
+        time.sleep(POLL)
 
 
 def find_web_root(win):
@@ -181,6 +191,8 @@ def wait_for_detail_page(win, game, timeout=NAV_TIMEOUT):
     Without this the stale Play button of the previously open game is still in the
     tree, and a naive search would start the wrong game.
     """
+    offered = []  # buttons seen on the title row, so a failure can say what was there
+
     def find():
         doc = find_web_root(win)
         pane = sidebar(doc) if doc is not None else None
@@ -188,16 +200,30 @@ def wait_for_detail_page(win, game, timeout=NAV_TIMEOUT):
             return None
         edge = pane.BoundingRectangle.right
         title = play = None
+        buttons = []
         for ctrl, _ in walk(doc):
-            if ctrl.BoundingRectangle.left <= edge:
+            r = ctrl.BoundingRectangle
+            if r.left <= edge:
                 continue  # sidebar shows the name too; only the detail pane counts
             if ctrl.ControlTypeName == "HyperlinkControl" and normalize(ctrl.Name) == game:
                 title = ctrl
-            elif ctrl.ControlTypeName == "ButtonControl" and ctrl.Name.casefold() in PLAY_NAMES:
-                play = ctrl
-        return play if title is not None else None
+            elif ctrl.ControlTypeName == "ButtonControl" and ctrl.Name.strip():
+                buttons.append((r.top, r.left, ctrl.Name))
+                if ctrl.Name.casefold() in PLAY_NAMES:
+                    play = ctrl
+        if title is None:
+            return None
+        top = title.BoundingRectangle.top
+        offered[:] = [n for y, _, n in sorted(buttons) if top <= y <= top + 80]
+        return play
 
-    return wait_until(find, timeout, f"Wand did not open {game!r}, nothing clicked")
+    def failure():
+        if not offered:
+            return f"Wand did not open {game!r}, nothing clicked"
+        return (f"Wand opened {game!r} but shows no Play button, only {offered}. "
+                f"If it offers to add the game, do that once in Wand. Nothing clicked")
+
+    return wait_until(find, timeout, failure)
 
 
 # --- entry points ------------------------------------------------------------
@@ -219,22 +245,36 @@ def tree_lines(win):
 def dump():
     """Print the tree once it stops growing.
 
-    Chromium keeps filling the tree for seconds after the first node appears, so dumping
-    on that signal prints a near-empty shell. Waiting for the sidebar instead is not an
-    option: --dump exists for the case where those very selectors broke, so the wait has
-    to be selector-free. Two identical node counts in a row is that signal.
+    Waiting for the sidebar instead is not an option: --dump exists for the case where
+    those very selectors broke, so the wait has to be selector-free. Node count going
+    quiet is that signal -- but a cold start plateaus at ~17 nodes for around two seconds
+    before the real render, so the quiet stretch has to outlast that plateau. Measured on
+    a cold start: 17 nodes at 6.3s and 6.9s, 1100 at 8.5s, 1326 from 10.2s on.
     """
     win = start_wand()
-    previous = [-1]
+    settled, largest, repeats, previous = None, [], 0, -1
+    deadline = time.monotonic() + TREE_TIMEOUT
+    while time.monotonic() < deadline:
+        try:
+            lines = tree_lines(win) or []
+        except COMError:
+            lines = []
+        if len(lines) > len(largest):
+            largest = lines
+        repeats = repeats + 1 if lines and len(lines) == previous else 0
+        previous = len(lines)
+        if repeats >= DUMP_SETTLE:
+            settled = lines
+            break
+        time.sleep(DUMP_POLL)
 
-    def settled():
-        lines = tree_lines(win) or []
-        stable = len(lines) > 0 and len(lines) == previous[0]
-        previous[0] = len(lines)
-        return lines if stable else None
-
-    lines = wait_until(settled, TREE_TIMEOUT, "Wand's tree never stopped changing", poll=1.0)
+    lines = settled if settled is not None else largest
+    if not lines:
+        sys.exit(f"Wand's accessibility tree stayed empty (gave up after {TREE_TIMEOUT:.0f}s)")
     print("\n".join(lines))
+    if settled is None:
+        # An idle Wand still wobbles by a node or two, so never settling is possible.
+        print("--- never settled, printing the largest sample seen ---", file=sys.stderr)
     print(f"--- {len(lines)} controls ---", file=sys.stderr)
 
 
@@ -261,6 +301,8 @@ def selftest():
 def main(argv):
     if not argv or argv[0] in ("-h", "--help"):
         sys.exit(__doc__.strip())
+    if argv[0] in ("-V", "--version"):
+        return print(f"wandplay {__version__}")
     if argv[0] == "--selftest":
         return selftest()
     if argv[0] == "--dump":
