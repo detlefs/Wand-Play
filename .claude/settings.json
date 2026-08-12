@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(py -c \"import sys; print\\(sys.version\\)\"; foreach \\($m in 'uiautomation','psutil','comtypes'\\) { py -c \"import $m, sys; print\\('$m', getattr\\($m,'__version__','?'\\)\\)\" 2>&1 | Select-Object -First 1 })",
+      "Read(//c/Users/detle/AppData/Local/Wand/**)",
+      "PowerShell(\\(Get-ItemProperty 'HKCU:\\\\SOFTWARE\\\\Valve\\\\Steam'\\).SteamPath; '---'; Get-Content 'C:\\\\Program Files \\(x86\\)\\\\Steam\\\\steamapps\\\\libraryfolders.vdf' -ErrorAction SilentlyContinue | Select-String '\"path\"'; '---'; Get-Process steam -ErrorAction SilentlyContinue | Select-Object -First 1 Name,Id)"
+    ]
+  }
+}
