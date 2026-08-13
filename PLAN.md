@@ -1,163 +1,161 @@
-# Wand-Play — Entscheidungsprotokoll
+# Wand-Play — Decision Log
 
-Bedienungsanleitung steht in [README.md](README.md). Dieses Dokument hält fest, **warum**
-das Tool so klein ist — insbesondere, welche Teile des ursprünglichen Plans nach dem
-UIA-Spike ersatzlos gestrichen wurden.
+The user manual is in [README.md](README.md). This document records **why** the tool is so
+small — in particular which parts of the original plan were dropped outright after the UIA
+spike.
 
-Stand: 2026-08-12, verifiziert gegen Wand `app-12.45.1` (deutsche Oberfläche),
-Python 3.14.7, `uiautomation` 2.0.29.
+Status: 2026-08-12, verified against Wand `app-12.45.1` (German UI), Python 3.14.7,
+`uiautomation` 2.0.29.
 
-## Der Plan war dreimal so groß
+## The plan was three times as big
 
-Ursprünglich sollte das Tool fünf Schritte automatisieren: Wand starten, Steam-Bibliotheken
-aus Registry und `libraryfolders.vdf` einlesen, Spiel per `appmanifest_*.acf` finden, über
-`steam://rungameid/<appid>` starten, auf den Spielprozess warten, dann in Wand klicken.
+Originally the tool was meant to automate five steps: start Wand, read the Steam libraries from
+the registry and `libraryfolders.vdf`, find the game via `appmanifest_*.acf`, launch it through
+`steam://rungameid/<appid>`, wait for the game process, then click in Wand.
 
-Der Spike hat die Grundannahme widerlegt: **Wands „Spielen"-Button startet das Spiel selbst
-über Steam und hängt den Trainer an.** Damit sind die Schritte 2–5 überflüssig. Ersatzlos
-gestrichen:
+The spike disproved the core assumption: **Wand's "Play" button launches the game itself
+through Steam and attaches the trainer.** That makes steps 2–5 pointless. Dropped outright:
 
-| Gestrichen | Grund |
+| Dropped | Reason |
 | --- | --- |
-| `winreg`-Zugriff auf `HKCU\SOFTWARE\Valve\Steam` | Steam wird nie direkt angesprochen |
-| `libraryfolders.vdf` per Regex parsen | dito |
-| `appmanifest_*.acf` parsen (`name`/`appid`/`installdir`) | Wands Sidebar **ist** der Spielekatalog |
-| `os.startfile("steam://rungameid/…")` | Wand startet das Spiel |
-| Prozess-Polling auf `<lib>\steamapps\common\<installdir>\` | kein Bereitschaftssignal nötig |
-| `psutil` bzw. `ctypes`/`QueryFullProcessImageName`/`wmic`-Fallback | siehe oben |
+| `winreg` access to `HKCU\SOFTWARE\Valve\Steam` | Steam is never addressed directly |
+| parsing `libraryfolders.vdf` with a regex | ditto |
+| parsing `appmanifest_*.acf` (`name`/`appid`/`installdir`) | Wand's sidebar **is** the game catalog |
+| `os.startfile("steam://rungameid/…")` | Wand launches the game |
+| process polling on `<lib>\steamapps\common\<installdir>\` | no readiness signal needed |
+| `psutil` resp. `ctypes`/`QueryFullProcessImageName`/`wmic` fallback | see above |
 
-Übrig bleibt eine Abhängigkeit: `uiautomation`.
+One dependency remains: `uiautomation`.
 
-Nebenbefund, der das stützt: Wands Sidebar listet 44 Titel, die installierte Steam-Bibliothek
-49 — die Differenz sind Nicht-Spiele (`Steamworks Common Redistributables`, `DSX`,
-`s&box editor`) plus `Fallout: London`, das Steam gar nicht kennt. Die Namen weichen leicht
-ab (`Train Sim World® 6` vs. `Train Sim World 6`), was ein Matching über Steam-Namen ohnehin
-unzuverlässig gemacht hätte.
+A side finding that supports this: Wand's sidebar lists 44 titles, the installed Steam library
+49 — the difference is non-games (`Steamworks Common Redistributables`, `DSX`,
+`s&box editor`) plus `Fallout: London`, which Steam doesn't know at all. The names differ
+slightly (`Train Sim World® 6` vs. `Train Sim World 6`), which would have made matching via
+Steam names unreliable anyway.
 
-## Bestätigte Entscheidungen
+## Confirmed decisions
 
-1. **Ablageort**: Skript im Repo, nicht in `%USERPROFILE%`. Bequemer Aufruf über eine
-   Profil-Funktion statt einer zweiten Dateikopie, die auseinanderdriftet.
-2. **Spike vor Code**: UIA-Baum erst am laufenden Wand vermessen, dann Selektoren fixieren.
-   Hat sich gelohnt — ohne Messung wären Warm-up, Größenfilter und die Stale-Button-Falle
-   alle drei falsch geraten worden.
-3. **Nur installierte Spiele**: Gematcht wird ausschließlich gegen die Sidebar. Die
-   Karussells der Startseite enthalten auch nicht besessene Titel (`ELDEN RING`,
-   `Garten of Banban`) und würden bei Teilstring-Suche mittreffen.
-4. **Kein Blindklick**: Nach dem Klick auf den Listeneintrag wird gepollt, bis der
-   Detail-Titel dem Zielspiel entspricht. Ein `sleep()` wäre hier eine Wette gewesen, kein
-   Schutz. Das ist die eine Stelle, an der bewusst nicht minimiert wurde.
-5. **Kein Warten auf den Spielstart**: Nach dem „Spielen"-Klick endet das Tool. Darauf zu
-   warten hätte das gerade gestrichene Prozess-Polling samt `psutil` zurückgeholt. Die
-   Erfolgsmeldung sagt deshalb „Play geklickt", nicht „Spiel läuft".
-6. **`--dump` bleibt**: Wand aktualisiert sich häufig; ein Baum-Dump macht kaputte
-   Selektoren in Sekunden sichtbar. Als Flag im Skript, nicht als zweite Datei.
-7. **Ein Selbsttest**: `--selftest` deckt das Namens-Matching ab (`normalize`,
-   `match_names`) — der einzige nicht-triviale reine Code. Der UIA-Pfad ist nur am
-   laufenden Wand prüfbar; dafür ist `--dump` da.
+1. **Location**: script in the repo, not in `%USERPROFILE%`. Convenient invocation via a profile
+   function instead of a second copy of the file that drifts apart.
+2. **Spike before code**: measure the UIA tree against a running Wand first, then pin the
+   selectors down. Worth it — without measuring, warm-up, size filter and the stale-button trap
+   would all three have been guessed wrong.
+3. **Installed games only**: matching happens exclusively against the sidebar. The carousels on
+   the start page also contain titles you don't own (`ELDEN RING`, `Garten of Banban`) and would
+   be hit by a substring search.
+4. **No blind click**: after clicking the list entry, poll until the detail title matches the
+   target game. A `sleep()` would have been a bet here, not a safeguard. This is the one place
+   where minimizing was deliberately skipped.
+5. **No waiting for game launch**: the tool ends after the "Play" click. Waiting for it would
+   have brought back exactly the process polling and `psutil` that were just dropped. That's why
+   the success message says "clicked Play", not "game is running".
+6. **`--dump` stays**: Wand updates frequently; a tree dump makes broken selectors visible in
+   seconds. As a flag in the script, not as a second file.
+7. **One self-test**: `--selftest` covers name matching (`normalize`, `match_names`) — the only
+   non-trivial pure code. The UIA path can only be checked against a running Wand; that's what
+   `--dump` is for.
 
-## Messergebnisse aus dem Spike
+## Measurements from the spike
 
-- Der erste UIA-Zugriff liefert einen **leeren** `RootWebArea` (0 Kinder). Erst eine weitere
-  Abfrage füllt ihn. Eine Retry-Schleife ist zwingend, `Exists()` allein reicht nicht.
-- Spielzeilen der Sidebar haben alle exakt `226×32` px; Optionen-Buttons `32×32`, der
-  aktive-Titel-Block `234×52`, „Alle 11 Spiele ansehen" `182×40`. Statt `226` zu verdrahten,
-  filtert das Tool auf die **häufigste** Button-Größe — selbstkalibrierend.
-- Die Sidebar hat keine `AutomationId`. Stabiler Anker: der Navigationseintrag, dessen Name
-  mit dem Icon-Wort `browse` plus Leerzeichen beginnt, dann zwei Ebenen nach oben. Die Ebenen 2–4 liefern
-  alle dieselbe Pane, es gibt also Spielraum.
-- Die Sidebar **sortiert sich um** (zuletzt gespielt wandert nach oben). Koordinaten sind
-  wertlos, Namen sind die einzige stabile Kennung.
-- `InvokePattern` wird von allen Buttons unterstützt, auch bei `IsOffscreen=True`. Deshalb
-  kein `.Click()`: kein Fensterfokus, kein Mauszeiger-Diebstahl, kein Scrollen.
+- The first UIA access returns an **empty** `RootWebArea` (0 children). Only a further query
+  fills it. A retry loop is mandatory, `Exists()` alone is not enough.
+- Sidebar game rows are all exactly `226×32` px; options buttons `32×32`, the active-title block
+  `234×52`, "View all 11 games" `182×40`. Instead of hard-wiring `226`, the tool filters on the
+  **most common** button size — self-calibrating.
+- The sidebar has no `AutomationId`. Stable anchor: the navigation entry whose name starts with
+  the icon word `browse` plus a space, then two levels up. Levels 2–4 all yield the same pane,
+  so there is some slack.
+- The sidebar **reorders itself** (most recently played moves to the top). Coordinates are
+  worthless, names are the only stable identifier.
+- `InvokePattern` is supported by all buttons, even with `IsOffscreen=True`. Hence no `.Click()`:
+  no window focus, no pointer hijacking, no scrolling.
 
-## Verifikationsstand
+## Verification status
 
-Belegt durch Ausführung:
+Backed by actual execution:
 
 - `--selftest` → `selftest ok`, exit 0
-- Sidebar-Extraktion → 44 Spiele; `Spielen` und `Optionen für …` korrekt herausgefiltert
-- Mehrfachtreffer → `sim` liefert 6 Titel und die nummerierte Auswahl
-- Kein Treffer → `zzz` bricht ab, ohne zu klicken
-- Navigation Black Flag → Starfield → Play-Button nach 2,1 s bereit, `invokable=True`
-- Stale-Button-Schutz → auf einer fremden Detailseite nach `Nightingale` gefragt: verweigert
-  mit `Wand did not open 'Nightingale', nothing clicked`, obwohl ein sichtbarer
-  „Spielen"-Button im Baum lag
-- Kaltstart (Wand vorher beendet), zweimal → Fenster nach 5,9 s, 44 Spiele nach 8,3/8,8 s,
-  Play-Button bereit nach 10,8/11,3 s
+- sidebar extraction → 44 games; `Spielen` and `Optionen für …` correctly filtered out
+- multiple hits → `sim` yields 6 titles and the numbered choice
+- no hit → `zzz` aborts without clicking
+- navigation Black Flag → Starfield → Play button ready after 2.1 s, `invokable=True`
+- stale-button protection → asked for `Nightingale` while on a different detail page: refused
+  with `Wand did not open 'Nightingale', nothing clicked`, even though a visible "Spielen"
+  button was in the tree
+- cold start (Wand shut down beforehand), twice → window after 5.9 s, 44 games after 8.3/8.8 s,
+  Play button ready after 10.8/11.3 s
 
-## Nachtrag: zwei Kaltstart-Bugs
+## Addendum: two cold-start bugs
 
-Beim ersten echten Kaltstart brach das Tool ab. Zwei getrennte Ursachen, beide gefixt:
+On the first real cold start the tool aborted. Two separate causes, both fixed:
 
-1. **`sidebar()` wartete gar nicht.** `web_root()` kehrte zurück, sobald `RootWebArea` sein
-   erstes Kind hatte — da war die Navigation noch nicht gerendert, und `sidebar()` suchte den
-   `browse`-Anker genau einmal und brach ab. Ein höherer Timeout hätte daran nichts geändert.
-   Jetzt pollt jede Wartestelle über einen gemeinsamen `wait_until()` auf genau das Element,
-   das sie braucht.
-2. **`COMError` beim Baum-Durchlauf.** Rendert Wand während des Walks neu, verschwindet ein
-   Element und UIA wirft. Wird in `wait_until()` als „noch nicht fertig" behandelt und erneut
-   versucht; der Timeout beendet es weiterhin.
+1. **`sidebar()` didn't wait at all.** `web_root()` returned as soon as `RootWebArea` had its
+   first child — at that point the navigation wasn't rendered yet, and `sidebar()` looked for the
+   `browse` anchor exactly once and gave up. A higher timeout would have changed nothing. Now
+   every wait polls through a shared `wait_until()` for exactly the element it needs.
+2. **`COMError` while walking the tree.** If Wand re-renders during the walk, an element
+   disappears and UIA throws. This is treated as "not ready yet" in `wait_until()` and retried;
+   the timeout still terminates it.
 
-3. **`--dump` gab nur das leere Gerüst aus.** Dieselbe Wurzel wie 1: gedumpt wurde, sobald
-   `RootWebArea` ein Kind hatte. Hier ist die Lösung aber bewusst eine andere als im
-   Normalpfad — auf die Sidebar zu warten wäre falsch, weil `--dump` genau dann gebraucht
-   wird, wenn die Selektoren kaputt sind. Das Signal muss selektor-frei sein: gewartet wird,
-   bis der Baum nicht mehr wächst (zwei gleiche Knotenzahlen in Folge). Kalt: 1327 Zeilen
-   nach 12 s statt 13 Zeilen sofort.
+3. **`--dump` only printed the empty skeleton.** Same root cause as 1: the dump happened as soon
+   as `RootWebArea` had one child. Here the fix is deliberately different from the normal path —
+   waiting for the sidebar would be wrong, because `--dump` is needed precisely when the
+   selectors are broken. The signal has to be selector-free: wait until the tree stops growing
+   (two identical node counts in a row). Cold: 1327 lines after 12 s instead of 13 lines
+   immediately.
 
-4. **`--dump` feuerte im Ladebildschirm.** Die erste Fassung von 3 nahm „zwei gleiche
-   Knotenzahlen in Folge" als Signal. Die gemessene Wachstumskurve eines Kaltstarts zeigt
-   aber ein Plateau: 0 Knoten bei 5,8 s, **17 bei 6,3 s und 17 bei 6,9 s**, 1100 bei 8,5 s,
-   1326 ab 10,2 s. Das Plateau hält 2,2 s — die Regel lag mittendrin und dumpte 18 Zeilen.
-   Jetzt: 5 gleiche Zählungen im Abstand von 1 s (`DUMP_SETTLE`), das überspringt das
-   Plateau mit Abstand. Die Kurve zeigt außerdem ein Dauerwackeln im Ruhezustand
-   (1326 → 1328 → 1326), das strenge Stabilität nie erreichen könnte; deshalb gibt der Dump
-   beim Timeout die größte gesehene Stichprobe aus, statt zu scheitern.
+4. **`--dump` fired during the loading screen.** The first version of 3 took "two identical node
+   counts in a row" as its signal. The measured growth curve of a cold start, however, shows a
+   plateau: 0 nodes at 5.8 s, **17 at 6.3 s and 17 at 6.9 s**, 1100 at 8.5 s, 1326 from 10.2 s
+   on. The plateau lasts 2.2 s — the rule landed right in the middle of it and dumped 18 lines.
+   Now: 5 identical counts 1 s apart (`DUMP_SETTLE`), which clears the plateau comfortably. The
+   curve also shows a permanent jitter at rest (1326 → 1328 → 1326) that strict stability could
+   never reach; that's why on timeout the dump prints the largest sample it saw instead of
+   failing.
 
-`TREE_TIMEOUT` steht jetzt bei 180 s. Das ist eine Abbruchgrenze, keine Wartezeit — der
-Normalfall ist in ~11 s durch.
+`TREE_TIMEOUT` now sits at 180 s. That is an abort limit, not a wait time — the normal case is
+done in ~11 s.
 
-## EXE-Build und Versionierung
+## EXE build and versioning
 
-- **PyInstaller `--onefile`**, angestoßen von [build.py](build.py). Ergebnis 10,5 MB, läuft
-  ohne Python auf dem Zielrechner. `comtypes`/UIA funktionieren im Freeze ohne Zusatzflags —
-  geprüft, indem `--dump` aus der EXE denselben 1327-Zeilen-Baum liefert wie das Skript.
-- **Eine Quelle für die Version**: `__version__` in [wandplay.py](wandplay.py). `build.py`
-  generiert daraus die Windows-Versionsressource (`VSVersionInfo`) in eine temporäre Datei.
-  Die Alternative wäre gewesen, die Nummer in einer `.spec`- oder Ressourcendatei zu
-  pflegen — zwei Orte, die auseinanderlaufen. Verifiziert: `--version` sagt `1.0.0`,
-  `(Get-Item …).VersionInfo.FileVersion` sagt `1.0.0`.
-- **Kein `.spec` im Repo**: `build.py` ruft PyInstaller mit Flags auf, die generierte
-  `.spec` ist Wegwerfware und steht in [.gitignore](.gitignore).
+- **PyInstaller `--onefile`**, driven by [build.py](build.py). Result 10.5 MB, runs without
+  Python on the target machine. `comtypes`/UIA work in the freeze without extra flags — checked
+  by confirming that `--dump` from the EXE yields the same 1327-line tree as the script.
+- **One source for the version**: `__version__` in [wandplay.py](wandplay.py). `build.py`
+  generates the Windows version resource (`VSVersionInfo`) from it into a temporary file. The
+  alternative would have been maintaining the number in a `.spec` or resource file — two places
+  that drift apart. Verified: `--version` says `1.0.0`, `(Get-Item …).VersionInfo.FileVersion`
+  says `1.0.0`.
+- **No `.spec` in the repo**: `build.py` calls PyInstaller with flags, the generated `.spec` is
+  throwaway and listed in [.gitignore](.gitignore).
 
-## Sprachabhängigkeit
+## Language dependency
 
-Beim Testen war Wand kurzzeitig auf Chinesisch umgestellt. Das hat gezeigt, wo das Tool
-sprachabhängig ist: **nur `PLAY_NAMES`**. Der Sidebar-Anker (`browse`) ist ein
-Material-Icon-Name und damit sprachneutral, der Größenfilter ist es ohnehin. Der Dump ist
-bewusst selektor- und damit sprachfrei — er funktioniert also gerade dann, wenn genau diese
-Stelle bricht.
+During testing Wand was briefly switched to Chinese. That showed where the tool is
+language-dependent: **only `PLAY_NAMES`**. The sidebar anchor (`browse`) is a Material icon name
+and therefore language-neutral, and the size filter is language-neutral anyway. The dump is
+deliberately selector-free and thus language-free — so it works precisely when that one spot
+breaks.
 
-## Wand-Zustand, nicht Tool-Fehler
+## Wand state, not a tool bug
 
-Nach dem Sprachwechsel bot Wands Detailseite für Black Flag `Spiel hinzufügen` statt
-`Spielen` an; Starfield, Baldur's Gate 3 und Avowed zeigten weiter `Spielen`. Das Tool hat
-korrekt abgebrochen statt zu klicken. Die Fehlermeldung war allerdings falsch — sie sagte
-„did not open", obwohl die Seite offen war. Jetzt unterscheidet sie beide Fälle und listet
-die tatsächlich vorhandenen Buttons auf.
+After the language switch, Wand's detail page for Black Flag offered `Spiel hinzufügen` ("Add
+game") instead of `Spielen`; Starfield, Baldur's Gate 3 and Avowed still showed `Spielen`. The
+tool correctly aborted instead of clicking. The error message was wrong, though — it said "did
+not open" even though the page was open. It now distinguishes both cases and lists the buttons
+actually present.
 
-**Offen:** Der finale `Invoke()` auf „Spielen" ist noch nicht End-to-End ausgeführt worden —
-er startet ein echtes Spiel. Alles davor ist gemessen.
+**Open:** the final `Invoke()` on "Spielen" has not yet been run end to end — it launches a real
+game. Everything before it has been measured.
 
-## Wenn es doch mehr werden soll
+## If it should grow after all
 
-Bewusst nicht gebaut, mit Auslöser:
+Deliberately not built, with the trigger that would justify it:
 
-- **Suche über Wands Suchfeld** — nötig, sobald ein Spiel nicht in der Sidebar steht. Wands
-  Suche ist ein Button (`search Suchen`), kein `EditControl`; das Overlay wäre erst zu
-  vermessen.
-- **Warten auf den Spielstart** — nötig, sobald etwas nach `wandplay` in einer Kette laufen
-  soll. Bringt Prozess-Polling zurück.
-- **Nicht installierte Spiele ansteuern** — Wand würde die Installation anbieten. Aktuell
-  bewusst ausgeschlossen (Entscheidung 3).
+- **Search via Wand's search field** — needed as soon as a game isn't in the sidebar. Wand's
+  search is a button (`search Suchen`), not an `EditControl`; the overlay would have to be
+  measured first.
+- **Waiting for the game to launch** — needed as soon as something should run after `wandplay` in
+  a chain. Brings process polling back.
+- **Targeting games that aren't installed** — Wand would offer to install them. Currently
+  excluded on purpose (decision 3).

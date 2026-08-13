@@ -1,34 +1,34 @@
 # Wand-Play
 
-Startet ein Spiel mit angehängtem [Wand](https://wand.gg)-Trainer per Kommandozeile.
-Statt Wand zu öffnen, das Spiel in der Liste zu suchen und „Spielen" zu klicken:
+Launches a game with the [Wand](https://wand.gg) trainer attached, straight from the command
+line. Instead of opening Wand, finding the game in the list and clicking "Play":
 
 ```text
 py wandplay.py "Black Flag"
 ```
 
-Das Tool startet Wand (falls nötig), sucht den Titel in Wands Spieleliste und klickt
-„Spielen". Wand selbst startet daraufhin das Spiel über Steam und hängt den Trainer an.
+The tool starts Wand (if needed), looks up the title in Wand's game list and clicks "Play".
+Wand then launches the game through Steam and attaches the trainer.
 
-## Voraussetzungen
+## Requirements
 
-- Windows, Python 3.10+ (getestet mit 3.14.7)
-- Wand installiert unter `%LOCALAPPDATA%\Wand\Wand.exe`
-- `py -m pip install -r requirements.txt` (einzige Abhängigkeit: `uiautomation`)
+- Windows, Python 3.10+ (tested with 3.14.7)
+- Wand installed at `%LOCALAPPDATA%\Wand\Wand.exe`
+- `py -m pip install -r requirements.txt` (single dependency: `uiautomation`)
 
-Steam muss **nicht** separat angesteuert werden — das erledigt Wand.
+Steam does **not** need to be driven separately — Wand takes care of that.
 
-## Benutzung
+## Usage
 
 ```text
-py wandplay.py "Black Flag"     Teilname, Groß-/Kleinschreibung egal
-py wandplay.py --dump           Wands Accessibility-Baum ausgeben
-py wandplay.py --selftest       Namens-Matching prüfen
-py wandplay.py --version        Versionsnummer ausgeben (auch -V)
+py wandplay.py "Black Flag"     partial name, case-insensitive
+py wandplay.py --dump           print Wand's accessibility tree
+py wandplay.py --selftest       check name matching
+py wandplay.py --version        print the version number (also -V)
 ```
 
-Der Suchbegriff wird als Teilstring gegen Wands Spieleliste gematcht. Mehrere Treffer
-ergeben eine nummerierte Auswahl:
+The search term is matched as a substring against Wand's game list. Multiple hits produce a
+numbered choice:
 
 ```text
 > py wandplay.py sim
@@ -42,27 +42,27 @@ ergeben eine nummerierte Auswahl:
 number:
 ```
 
-Kein Treffer → Abbruch mit Meldung, ohne irgendetwas zu klicken.
+No hit → abort with a message, without clicking anything.
 
-Bequemer Aufruf über das PowerShell-Profil (`$PROFILE`):
+More convenient invocation via the PowerShell profile (`$PROFILE`):
 
 ```powershell
 function wandplay { py d:\Entwicklung\GitHub\Wand-Play\wandplay.py @args }
 ```
 
-## Als EXE bauen
+## Building an EXE
 
 ```powershell
 py -m pip install pyinstaller
 py build.py
 ```
 
-Ergebnis: `dist\wandplay.exe`, rund 10,5 MB, eine einzelne Datei ohne Python-Installation
-auf dem Zielrechner. Aufruf identisch: `wandplay.exe "Black Flag"`.
+Result: `dist\wandplay.exe`, about 10.5 MB, a single file that needs no Python installation on
+the target machine. Invocation is identical: `wandplay.exe "Black Flag"`.
 
-Die Versionsnummer steht **ausschließlich** in `__version__` in [wandplay.py](wandplay.py).
-[build.py](build.py) erzeugt daraus die Windows-Versionsressource, damit `--version` und die
-Dateieigenschaften im Explorer nicht auseinanderlaufen können:
+The version number lives **exclusively** in `__version__` in [wandplay.py](wandplay.py).
+[build.py](build.py) derives the Windows version resource from it, so that `--version` and the
+file properties in Explorer cannot drift apart:
 
 ```text
 > dist\wandplay.exe --version
@@ -72,48 +72,48 @@ wandplay 1.0.0
 1.0.0
 ```
 
-Für eine neue Version nur `__version__` ändern und `py build.py` erneut ausführen.
+For a new release, just change `__version__` and run `py build.py` again.
 
-## Wie es funktioniert
+## How it works
 
-Wand ist eine Electron-App und über UI Automation vollständig auslesbar. Drei Details,
-die nicht offensichtlich sind:
+Wand is an Electron app and fully readable through UI Automation. Three details that are not
+obvious:
 
-- **Warm-up**: Chromium baut seinen Accessibility-Baum erst, wenn ein UIA-Client danach
-  fragt — die erste Antwort ist ein leerer `RootWebArea`. Beim Kaltstart wächst der Baum
-  danach noch weiter (Squirrel-Stub → Electron → Login → Spieleliste). Jede Wartestelle
-  pollt deshalb auf genau das Element, das sie braucht, statt auf ein schwächeres Signal wie
-  „Fenster da" oder „Baum nicht leer". Verschwindet ein Element während eines Re-Renders
-  mitten im Durchlauf (`COMError`), wird erneut geschaut, bis der Timeout greift.
-- **Spieleliste**: alle Spielzeilen der Sidebar haben dieselbe Größe, das Drumherum
-  (Optionen-Buttons, „Alle N Spiele ansehen", aktiver Titel) nicht. Gefiltert wird über die
-  häufigste Button-Größe, nicht über feste Pixelwerte — das überlebt Fenstergrößen und
-  UI-Sprache. Die Sidebar selbst wird über den Navigationseintrag mit dem Icon-Wort
-  `browse` gefunden, sie hat keine ID.
-- **Kein Blindklick**: nach dem Klick auf den Listeneintrag steckt der „Spielen"-Button der
-  *vorher* geöffneten Seite noch im Baum. Das Tool wartet, bis der Detail-Titel dem
-  gewählten Spiel entspricht, und bricht sonst ab, statt das falsche Spiel zu starten.
+- **Warm-up**: Chromium only builds its accessibility tree once a UIA client asks for it — the
+  first response is an empty `RootWebArea`. On a cold start the tree keeps growing after that
+  (Squirrel stub → Electron → login → game list). Every wait therefore polls for exactly the
+  element it needs, rather than for a weaker signal like "window is there" or "tree isn't
+  empty". If an element disappears during a re-render mid-walk (`COMError`), the walk is
+  retried until the timeout hits.
+- **Game list**: all game rows in the sidebar share the same size, the surrounding chrome
+  (options buttons, "View all N games", the active title) does not. Filtering goes by the most
+  common button size, not by hard-coded pixel values — that survives window sizes and UI
+  language. The sidebar itself is found via the navigation entry carrying the icon word
+  `browse`; it has no ID.
+- **No blind click**: after clicking the list entry, the "Play" button of the *previously*
+  opened page is still in the tree. The tool waits until the detail title matches the selected
+  game, and aborts otherwise instead of launching the wrong game.
 
-Geklickt wird über `InvokePattern`, nicht über die Maus: kein Fensterfokus nötig, kein
-Mauszeiger-Diebstahl, und Einträge weit unten in der Liste brauchen kein Scrollen.
+Clicking goes through `InvokePattern`, not the mouse: no window focus needed, no pointer
+hijacking, and entries far down the list need no scrolling.
 
-## Wenn ein Wand-Update die Selektoren bricht
+## When a Wand update breaks the selectors
 
-`py wandplay.py --dump` zeigt den kompletten Baum mit Namen, Typ und Geometrie (rund 1300
-Zeilen; die Anzahl geht nach stderr, `> baum.txt` bleibt also sauber). Der Dump wartet
-bewusst **nicht** auf die Sidebar, sondern darauf, dass der Baum nicht mehr wächst — er muss
-ja gerade dann funktionieren, wenn die Selektoren kaputt sind.
+`py wandplay.py --dump` prints the complete tree with names, types and geometry (around 1300
+lines; the count goes to stderr, so `> tree.txt` stays clean). The dump deliberately does
+**not** wait for the sidebar, but for the tree to stop growing — it has to work precisely when
+the selectors are broken.
 
-Die drei Stellen, die brechen können, stehen in [wandplay.py](wandplay.py): `sidebar()` (der
-`browse`-Anker), `sidebar_games()` (Größenfilter) und `PLAY_NAMES` (Beschriftung des
-Buttons, aktuell `Spielen`/`Play`).
+The three places that can break are in [wandplay.py](wandplay.py): `sidebar()` (the `browse`
+anchor), `sidebar_games()` (size filter) and `PLAY_NAMES` (the button's label, currently
+`Spielen`/`Play`).
 
-`PLAY_NAMES` ist die einzige sprachabhängige Stelle — stellst du Wands Oberfläche auf eine
-andere Sprache um, muss die dortige Beschriftung ergänzt werden. Anker und Größenfilter sind
-sprachunabhängig.
+`PLAY_NAMES` is the only language-dependent spot — if you switch Wand's UI to another
+language, that language's label has to be added. Anchor and size filter are
+language-independent.
 
-Meldet das Tool *„shows no Play button, only \[…\]"*, ist die Seite korrekt geöffnet und die
-Beschriftung passt nur nicht. Steht dort `Spiel hinzufügen`, hat Wand das Spiel nicht mehr
-hinzugefügt — einmal in Wand hinzufügen, danach läuft es wieder.
+If the tool reports *"shows no Play button, only \[…\]"*, the page is opened correctly and only
+the label doesn't match. If it says `Spiel hinzufügen` ("Add game"), Wand no longer has the
+game added — add it once in Wand and it works again.
 
-Verifiziert gegen Wand `app-12.45.1`, deutsche Oberfläche.
+Verified against Wand `app-12.45.1`, German UI.
