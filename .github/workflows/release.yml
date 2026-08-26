@@ -29,7 +29,10 @@ jobs:
       - name: Build
         run: python build.py
 
-      - name: Attach exe to release
-        run: gh release upload "${{ github.event.release.tag_name }}" dist/wandplay.exe --clobber
+      - name: Attach zipped exe to release
+        run: |
+          $zip = "wandplay-${{ github.event.release.tag_name }}.zip"
+          Compress-Archive -Path dist/wandplay.exe -DestinationPath $zip
+          gh release upload "${{ github.event.release.tag_name }}" $zip --clobber
         env:
           GH_TOKEN: ${{ github.token }}

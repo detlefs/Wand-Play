@@ -15,7 +15,7 @@ label. Tested with Wand in English, German, Polish and Japanese.
 
 # Download
 
-A prebuilt `wandplay.exe` is attached to every release — no Python installation needed: [latest release](https://github.com/detlefs/Wand-Play/releases/latest).
+A prebuilt `wandplay.exe` is attached to every release as a zip — no Python installation needed: [latest release](https://github.com/detlefs/Wand-Play/releases/latest).
 
 # Requirements
 
