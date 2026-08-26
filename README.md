@@ -8,17 +8,16 @@ py wandplay.py "Black Flag"
 ```
 
 The tool starts Wand (if needed), looks up the title in Wand's game list and clicks "Play".
-Wand then launches the game through Steam and attaches the trainer.
+Wand then launches the game and attaches the trainer.
 
-Wand's UI language does not matter: the Play button is located by its CSS class, not by its
-label. Tested with Wand in German, Polish and Japanese.
+Wand's UI language should not matter: the Play button is located by its CSS class, not by its  
+label. Tested with Wand in English, German, Polish and Japanese.
 
-## Download
+# Download
 
-A prebuilt `wandplay.exe` is attached to every release — no Python installation needed:
-[latest release](https://github.com/detlefs/Wand-Play/releases/latest).
+A prebuilt `wandplay.exe` is attached to every release — no Python installation needed: [latest release](https://github.com/detlefs/Wand-Play/releases/latest).
 
-## Requirements
+# Requirements
 
 - Windows, Python 3.10+ (tested with 3.14.7)
 - Wand installed at `%LOCALAPPDATA%\Wand\Wand.exe`
@@ -26,7 +25,7 @@ A prebuilt `wandplay.exe` is attached to every release — no Python installatio
 
 Steam does **not** need to be driven separately — Wand takes care of that.
 
-## Usage
+# Usage
 
 ```text
 py wandplay.py "Black Flag"     partial name, case-insensitive
@@ -58,10 +57,9 @@ More convenient invocation via the PowerShell profile (`$PROFILE`):
 function wandplay { py d:\Entwicklung\GitHub\Wand-Play\wandplay.py @args }
 ```
 
-## Building an EXE
+# Building/Using the EXE
 
-Only needed to build it yourself — ready-made binaries are on the
-[releases page](https://github.com/detlefs/Wand-Play/releases).
+This is only needed to build it yourself — ready-made binaries are on the [releases page](https://github.com/detlefs/Wand-Play/releases).
 
 ```powershell
 py -m pip install pyinstaller
@@ -71,47 +69,30 @@ py build.py
 Result: `dist\wandplay.exe`, about 10.5 MB, a single file that needs no Python installation on
 the target machine. Invocation is identical: `wandplay.exe "Black Flag"`.
 
-The version number lives **exclusively** in `__version__` in [wandplay.py](wandplay.py).
-[build.py](build.py) derives the Windows version resource from it, so that `--version` and the
-file properties in Explorer cannot drift apart:
-
-```text
-> dist\wandplay.exe --version
-wandplay 1.0.1
-
-> (Get-Item dist\wandplay.exe).VersionInfo.FileVersion
-1.0.1
-```
-
-For a new release, change `__version__`, then publish a release on GitHub with the matching tag
-(`__version__` `1.0.1` → tag `v1.0.1`). The
-[release workflow](.github/workflows/release.yml) builds the exe and attaches it; a mismatched
-tag fails the build.
-
-## How it works
+# How it works
 
 Wand is an Electron app and fully readable through UI Automation. Three details that are not
 obvious:
 
 - **Warm-up**: Chromium only builds its accessibility tree once a UIA client asks for it — the
-  first response is an empty `RootWebArea`. On a cold start the tree keeps growing after that
-  (Squirrel stub → Electron → login → game list). Every wait therefore polls for exactly the
-  element it needs, rather than for a weaker signal like "window is there" or "tree isn't
-  empty". If an element disappears during a re-render mid-walk (`COMError`), the walk is
-  retried until the timeout hits.
+first response is an empty `RootWebArea`. On a cold start the tree keeps growing after that
+(Squirrel stub → Electron → login → game list). Every wait therefore polls for exactly the
+element it needs, rather than for a weaker signal like "window is there" or "tree isn't
+empty". If an element disappears during a re-render mid-walk (`COMError`), the walk is
+retried until the timeout hits.
 - **Game list**: all game rows in the sidebar share the same size, the surrounding chrome
-  (options buttons, "View all N games", the active title) does not. Filtering goes by the most
-  common button size, not by hard-coded pixel values — that survives window sizes and UI
-  language. The sidebar itself is found via the navigation entry carrying the icon word
-  `browse`; it has no ID.
+(options buttons, "View all N games", the active title) does not. Filtering goes by the most
+common button size, not by hard-coded pixel values — that survives window sizes and UI
+language. The sidebar itself is found via the navigation entry carrying the icon word
+`browse`; it has no ID.
 - **No blind click**: after clicking the list entry, the "Play" button of the *previously*
-  opened page is still in the tree. The tool waits until the detail title matches the selected
-  game, and aborts otherwise instead of launching the wrong game.
+opened page is still in the tree. The tool waits until the detail title matches the selected
+game, and aborts otherwise instead of launching the wrong game.
 
 Clicking goes through `InvokePattern`, not the mouse: no window focus needed, no pointer
 hijacking, and entries far down the list need no scrolling.
 
-## When a Wand update breaks the selectors
+# When a Wand update breaks the selectors
 
 `py wandplay.py --dump` prints the complete tree with names, types and geometry (around 1300
 lines; the count goes to stderr, so `> tree.txt` stays clean). The dump deliberately does
@@ -126,7 +107,7 @@ exposes every element's CSS classes as `ClassName`; the Play button is anchored 
 `play-button__main-button`, which is not translatable. `browse` is a Material icon name, and
 the size filter is geometric.
 
-If the tool reports *"shows no Play button, only \[…\]"*, the page is opened correctly but Wand
+If the tool reports *"shows no Play button, only …"*, the page is opened correctly but Wand
 offers something else — usually "Add game", meaning Wand no longer has the game added. Add it
 once in Wand and it works again.
 
@@ -137,6 +118,3 @@ Verified against Wand `app-12.45.1` with the UI in German, Polish and Japanese.
 This project was written mostly by AI, with a human directing and testing it. If you would
 rather not use AI-generated software, please don't use this one.
 
-## License
-
-[MIT](LICENSE)
