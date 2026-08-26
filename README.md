@@ -10,6 +10,14 @@ py wandplay.py "Black Flag"
 The tool starts Wand (if needed), looks up the title in Wand's game list and clicks "Play".
 Wand then launches the game through Steam and attaches the trainer.
 
+Wand's UI language does not matter: the Play button is located by its CSS class, not by its
+label. Tested with Wand in German, Polish and Japanese.
+
+## Download
+
+A prebuilt `wandplay.exe` is attached to every release — no Python installation needed:
+[latest release](https://github.com/detlefs/Wand-Play/releases/latest).
+
 ## Requirements
 
 - Windows, Python 3.10+ (tested with 3.14.7)
@@ -52,6 +60,9 @@ function wandplay { py d:\Entwicklung\GitHub\Wand-Play\wandplay.py @args }
 
 ## Building an EXE
 
+Only needed to build it yourself — ready-made binaries are on the
+[releases page](https://github.com/detlefs/Wand-Play/releases).
+
 ```powershell
 py -m pip install pyinstaller
 py build.py
@@ -66,13 +77,16 @@ file properties in Explorer cannot drift apart:
 
 ```text
 > dist\wandplay.exe --version
-wandplay 1.0.0
+wandplay 1.0.1
 
 > (Get-Item dist\wandplay.exe).VersionInfo.FileVersion
-1.0.0
+1.0.1
 ```
 
-For a new release, just change `__version__` and run `py build.py` again.
+For a new release, change `__version__`, then publish a release on GitHub with the matching tag
+(`__version__` `1.0.1` → tag `v1.0.1`). The
+[release workflow](.github/workflows/release.yml) builds the exe and attaches it; a mismatched
+tag fails the build.
 
 ## How it works
 
@@ -105,15 +119,24 @@ lines; the count goes to stderr, so `> tree.txt` stays clean). The dump delibera
 the selectors are broken.
 
 The three places that can break are in [wandplay.py](wandplay.py): `sidebar()` (the `browse`
-anchor), `sidebar_games()` (size filter) and `PLAY_NAMES` (the button's label, currently
-`Spielen`/`Play`).
+anchor), `sidebar_games()` (size filter) and `PLAY_CLASS` (the Play button's CSS class).
 
-`PLAY_NAMES` is the only language-dependent spot — if you switch Wand's UI to another
-language, that language's label has to be added. Anchor and size filter are
-language-independent.
+None of the three depends on Wand's UI language. Wand is an Aurelia/Chromium app, so UIA
+exposes every element's CSS classes as `ClassName`; the Play button is anchored on
+`play-button__main-button`, which is not translatable. `browse` is a Material icon name, and
+the size filter is geometric.
 
-If the tool reports *"shows no Play button, only \[…\]"*, the page is opened correctly and only
-the label doesn't match. If it says `Spiel hinzufügen` ("Add game"), Wand no longer has the
-game added — add it once in Wand and it works again.
+If the tool reports *"shows no Play button, only \[…\]"*, the page is opened correctly but Wand
+offers something else — usually "Add game", meaning Wand no longer has the game added. Add it
+once in Wand and it works again.
 
-Verified against Wand `app-12.45.1`, German UI.
+Verified against Wand `app-12.45.1` with the UI in German, Polish and Japanese.
+
+## A note on how this was built
+
+This project was written mostly by AI, with a human directing and testing it. If you would
+rather not use AI-generated software, please don't use this one.
+
+## License
+
+[MIT](LICENSE)

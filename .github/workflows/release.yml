@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt pyinstaller
+
+      - name: Check tag matches __version__
+        run: |
+          $v = python -c "from wandplay import __version__; print(__version__)"
+          if ("v$v" -ne "${{ github.event.release.tag_name }}") {
+            throw "tag ${{ github.event.release.tag_name }} does not match __version__ $v"
+          }
+
+      - name: Build
+        run: python build.py
+
+      - name: Attach exe to release
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/wandplay.exe --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
