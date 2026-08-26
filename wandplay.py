@@ -6,7 +6,7 @@
     py wandplay.py --selftest     check the name matching
     py wandplay.py --version      print the version
 
-Wand's own "Spielen" button starts the game through Steam and attaches the trainer,
+Wand's own "Spielen/Play" button starts the game through Steam and attaches the trainer,
 so this drives Wand only -- no Steam registry, manifests or process polling needed.
 """
 import os
@@ -20,7 +20,7 @@ import uiautomation as auto
 from comtypes import COMError
 
 # The single source of truth: build.py reads this and stamps it into the exe resource.
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 WAND_EXE = Path(os.environ.get("LOCALAPPDATA", "")) / "Wand" / "Wand.exe"
 
@@ -39,7 +39,15 @@ DUMP_POLL = 1.0
 
 # Wand appends material-icon words and badges to accessible names.
 ICON_SUFFIXES = (" NEU", " NEW", " kid_star")
-PLAY_NAMES = {"spielen", "play"}
+
+# Wand is Aurelia/Chromium, so UIA exposes the CSS classes as ClassName. Anchoring the
+# Play button on its component class instead of its label is the one thing that made this
+# tool language-dependent. Measured unique in the detail pane; verified in German ("Spielen"),
+# Polish ("Graj") and Japanese (katakana), including a non-Latin script.
+# ponytail: unverified whether Wand's "add game" state reuses this same component. If it
+# does, that state now gets clicked instead of aborted -- harmless (a dialog opens), and the
+# state proved unreproducible. Re-add a name check only if it turns out to click wrongly.
+PLAY_CLASS = "play-button__main-button"
 
 
 # --- pure helpers (covered by --selftest) ------------------------------------
@@ -209,7 +217,7 @@ def wait_for_detail_page(win, game, timeout=NAV_TIMEOUT):
                 title = ctrl
             elif ctrl.ControlTypeName == "ButtonControl" and ctrl.Name.strip():
                 buttons.append((r.top, r.left, ctrl.Name))
-                if ctrl.Name.casefold() in PLAY_NAMES:
+                if PLAY_CLASS in ctrl.ClassName.split():
                     play = ctrl
         if title is None:
             return None

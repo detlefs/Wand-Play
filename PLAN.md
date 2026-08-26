@@ -131,11 +131,20 @@ done in ~11 s.
 
 ## Language dependency
 
-During testing Wand was briefly switched to Chinese. That showed where the tool is
-language-dependent: **only `PLAY_NAMES`**. The sidebar anchor (`browse`) is a Material icon name
-and therefore language-neutral, and the size filter is language-neutral anyway. The dump is
-deliberately selector-free and thus language-free — so it works precisely when that one spot
-breaks.
+During testing Wand was briefly switched to Chinese. That showed the tool's one
+language-dependent spot: the Play button, matched by its label (`Spielen`/`Play`).
+
+**Resolved.** Wand is an Aurelia/Chromium app, so UIA exposes each element's CSS classes as
+`ClassName`. The Play button is now anchored on `play-button__main-button` — measured unique in
+the detail pane, and language-neutral. Verified against Starfield, Black Flag and Avowed, in
+three languages: German resolves all three to `name='Spielen'`, Polish to `name='Graj'`,
+Japanese to `name='プレイ'` — same class every time, invokable, sidebar unchanged at 44 games.
+The old label check would have aborted on the Polish and Japanese runs.
+
+Everything else was already language-neutral: the sidebar anchor (`browse`) is a Material icon
+name, the size filter is geometric, and the dump is deliberately selector-free — so it works
+precisely when a selector breaks. The one remainder is cosmetic: `ICON_SUFFIXES` still lists the
+`NEU`/`NEW` badge words, which only affects display and de-duplication, never a click.
 
 ## Wand state, not a tool bug
 
