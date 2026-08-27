@@ -15,7 +15,13 @@ label. Tested with Wand in English, German, Polish and Japanese.
 
 # Download
 
-A prebuilt `wandplay.exe` is attached to every release as a zip — no Python installation needed: [latest release](https://github.com/detlefs/Wand-Play/releases/latest).
+Windows only — the tool drives Wand through the Windows UI Automation API.
+
+A prebuilt `wandplay.exe` is attached to every release as a zip — no Python installation needed: [latest release](https://github.com/detlefs/Wand-Play/releases/latest). Place the executable wherever you want.
+
+**Note**: the exe is not code-signed, so Windows SmartScreen may warn on first start
+("Windows protected your PC"). Click *More info* → *Run anyway*, or build it yourself with
+`py build.py` / just run `wandplay.py` from source.
 
 # Requirements
 
@@ -30,6 +36,7 @@ Steam does **not** need to be driven separately — Wand takes care of that.
 ```text
 py wandplay.py "Black Flag"     partial name, case-insensitive
 py wandplay.py --dump           print Wand's accessibility tree
+py wandplay.py --dump "Black Flag"   open that game's page first, then dump it
 py wandplay.py --selftest       check name matching
 py wandplay.py --version        print the version number (also -V)
 ```
@@ -59,7 +66,7 @@ function wandplay { py d:\Entwicklung\GitHub\Wand-Play\wandplay.py @args }
 
 # Building/Using the EXE
 
-This is only needed to build it yourself — ready-made binaries are on the [releases page](https://github.com/detlefs/Wand-Play/releases).
+This is only needed to build it yourself — ready-made binaries are on the [releases page](https://github.com/detlefs/Wand-Play/releases).
 
 ```powershell
 py -m pip install pyinstaller
@@ -70,6 +77,18 @@ Result: `dist\wandplay.exe`, about 10.5 MB, a single file that needs no Python i
 the target machine. Invocation is identical: `wandplay.exe "Black Flag"`.
 
 # How it works
+
+The tool does exactly what you would do by hand, only faster — it drives Wand's own GUI:
+
+1. **Start Wand** if it is not already running (`%LOCALAPPDATA%\Wand\Wand.exe`), and wait for
+its window.
+2. **Read the game list** out of the sidebar and match the search term as a substring against
+it. Several hits produce the numbered prompt; no hit aborts without clicking anything.
+3. **Click the game's entry**, which opens its detail page.
+4. **Click "Play"** on that page — after checking the page really shows the selected game.
+
+From there on it is Wand's job: it starts the game through Steam and attaches the trainer. The
+tool exits right after the click and polls neither Steam nor the game process.
 
 Wand is an Electron app and fully readable through UI Automation. Three details that are not
 obvious:
@@ -97,7 +116,11 @@ hijacking, and entries far down the list need no scrolling.
 `py wandplay.py --dump` prints the complete tree with names, types and geometry (around 1300
 lines; the count goes to stderr, so `> tree.txt` stays clean). The dump deliberately does
 **not** wait for the sidebar, but for the tree to stop growing — it has to work precisely when
-the selectors are broken.
+the selectors are broken. Every line carries `class=` (the CSS classes) next to `id=`; Wand's
+markup sets no HTML ids, so `id=''` is normal and the class is the selector-worthy half.
+
+Adding a game name (`--dump "Black Flag"`) opens that game's detail page before dumping, so the
+Play button is in the tree. It only clicks the sidebar entry, never Play.
 
 The three places that can break are in [wandplay.py](wandplay.py): `sidebar()` (the `browse`
 anchor), `sidebar_games()` (size filter) and `PLAY_CLASS` (the Play button's CSS class).

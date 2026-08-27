@@ -3,6 +3,7 @@
 
     py wandplay.py "Black Flag"   pick the game, let Wand start it
     py wandplay.py --dump         print Wand's accessibility tree (selector debugging)
+    py wandplay.py --dump "Black Flag"   open that game's page first, then dump it
     py wandplay.py --selftest     check the name matching
     py wandplay.py --version      print the version
 
@@ -20,7 +21,7 @@ import uiautomation as auto
 from comtypes import COMError
 
 # The single source of truth: build.py reads this and stamps it into the exe resource.
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 
 WAND_EXE = Path(os.environ.get("LOCALAPPDATA", "")) / "Wand" / "Wand.exe"
 
@@ -244,13 +245,23 @@ def tree_lines(win):
     lines = []
     for ctrl, depth in walk(doc):
         r = ctrl.BoundingRectangle
+        # Chromium maps the HTML id attribute to AutomationId and the CSS classes to
+        # ClassName. Wand's markup carries no ids, so class is the selector-worthy half.
         lines.append(f"{'  ' * depth}{ctrl.ControlTypeName} name={ctrl.Name!r} "
-                     f"id={ctrl.AutomationId!r} w={r.right - r.left} h={r.bottom - r.top} "
-                     f"x={r.left} y={r.top}")
+                     f"class={ctrl.ClassName!r} id={ctrl.AutomationId!r} "
+                     f"w={r.right - r.left} h={r.bottom - r.top} x={r.left} y={r.top}")
     return lines
 
 
-def dump():
+def open_game(win, term):
+    """Pick the game matching `term` and open its detail page. Returns its name."""
+    games = sidebar_games(win)
+    game = choose(match_names([n for n, _ in games], term), term)
+    invoke(dict(games)[game], f"sidebar entry {game!r}")
+    return game
+
+
+def dump(term=""):
     """Print the tree once it stops growing.
 
     Waiting for the sidebar instead is not an option: --dump exists for the case where
@@ -260,6 +271,11 @@ def dump():
     a cold start: 17 nodes at 6.3s and 6.9s, 1100 at 8.5s, 1326 from 10.2s on.
     """
     win = start_wand()
+    if term:
+        # No wait_for_detail_page here on purpose: --dump is what you reach for when that
+        # very selector broke, and it aborts when it finds no Play button. The settle loop
+        # below already waits for the page render to go quiet.
+        print(f"--- opened {open_game(win, term)} ---", file=sys.stderr)
     settled, largest, repeats, previous = None, [], 0, -1
     deadline = time.monotonic() + TREE_TIMEOUT
     while time.monotonic() < deadline:
@@ -314,13 +330,10 @@ def main(argv):
     if argv[0] == "--selftest":
         return selftest()
     if argv[0] == "--dump":
-        return dump()
+        return dump(" ".join(argv[1:]))
 
-    term = " ".join(argv)
     win = start_wand()
-    games = sidebar_games(win)
-    game = choose(match_names([n for n, _ in games], term), term)
-    invoke(dict(games)[game], f"sidebar entry {game!r}")
+    game = open_game(win, " ".join(argv))
     invoke(wait_for_detail_page(win, game), f"Play button for {game!r}")
     print(f"clicked Play for {game} -- Wand is starting it")
 
